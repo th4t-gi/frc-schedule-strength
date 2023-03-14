@@ -18,17 +18,17 @@ print("AVG EPA:", avg_epa)
 
 #Get list of teams
 teams = [str(team["team_number"]) for team in tba.event_teams(event_code)]
-
 #Get all the different epa, but we only really need one, I chose before playoffs because it had the smallest prediction error
 
 # teams_epa_mean = {team_num: sb.get_team_event(int(team_num), event_code, ["epa_mean"])["epa_mean"] for team_num in teams}
 # teams_epa_end = {team_num: sb.get_team_event(int(team_num), event_code, ["epa_end"])["epa_end"] for team_num in teams}
-teams_epa_qual = {team_num: sb.get_team_event(int(team_num), event_code, ["epa_pre_playoffs"])["epa_pre_playoffs"] for team_num in teams}
+teams_epa_qual = {team: sb.get_team_event(int(team), event_code, ["epa_pre_playoffs"])["epa_pre_playoffs"] for team in teams}
 
 epa_used = teams_epa_qual
 
 #Get formatted dictionary of ranks
 ranks = {team["team_key"][3:]: team["rank"] for team in tba.event_rankings(event_code)['rankings']}
+rank_to_epa_ratio = {team: ranks[team]/epa_used[team] for team in teams}
 
 #Format match schedule
 matches = [m for m in tba.event_matches(event_code, simple=True) if m['comp_level'] == 'qm']
@@ -68,14 +68,17 @@ for i, match in enumerate(qual_matches):
 
 print(sum(predict_err)/len(predict_err))
 
-#Finds sum of advantages per epa for each team
-#Actually... IDK why I divided by epa_used here??? like should it just be the average? like team_adv/len(team_adv)
-team_luck = {team: sum(team_adv[team]) for team, diff in team_adv.items()}
-#Sort dictionary by luck
+#Finds average point advantages for each team
+team_luck = {team: sum(team_adv[team])/len(team_adv[team]) for team, diff in team_adv.items()}
+#Sort dictionary
 team_luck = dict(sorted(team_luck.items(), key=lambda x: x[1]))
 
-#Put things in a csv file
-data = [(diff,epa_used[team], ranks[team]) for team, diff in team_luck.items()]
-df = pandas.DataFrame(data, columns=("luck", "epa", "rank"), index=team_luck.keys())
-df.index.name='team'
+#Put things in a csv file and plot
+data = [(team,diff,epa_used[team], len(teams)+1-ranks[team], rank_to_epa_ratio[team]) for team, diff in team_luck.items()]
+df = pandas.DataFrame(data, columns=("team", "luck", "epa", "rank", "rank_epa_ratio"))
+
 df.to_csv("./data.csv")
+
+ax = df.plot.bar(x="team", y=["luck", "epa"], rot=60)
+
+plt.show()
